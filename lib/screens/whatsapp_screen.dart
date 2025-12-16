@@ -1,8 +1,8 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/foundation.dart' as foundation;
+import '../widgets/custom_emoji_bottom_sheet.dart';
 
 const accentColor = Color(0xFF4BA586);
 const accentColorDark = Color(0xFF377E6A);
@@ -26,14 +26,12 @@ class WhatsAppScreenState extends State<WhatsAppScreen> {
   late final TextStyle _textStyle;
   final bool isApple = [TargetPlatform.iOS, TargetPlatform.macOS]
       .contains(foundation.defaultTargetPlatform);
-  bool _emojiShowing = false;
 
   @override
   void initState() {
     final fontSize = 24 * (isApple ? 1.2 : 1.0);
     // Define Custom Emoji Font & Text Style
-    _textStyle = DefaultEmojiTextStyle.copyWith(
-      fontFamily: GoogleFonts.notoColorEmoji().fontFamily,
+    _textStyle = TextStyle(
       fontSize: fontSize,
     );
 
@@ -116,22 +114,15 @@ class WhatsAppScreenState extends State<WhatsAppScreen> {
                               children: [
                                 IconButton(
                                   onPressed: () {
-                                    setState(() {
-                                      _emojiShowing = !_emojiShowing;
-                                      if (!_emojiShowing) {
-                                        WidgetsBinding.instance
-                                            .addPostFrameCallback((_) {
-                                          _focusNode.requestFocus();
-                                        });
-                                      } else {
-                                        _focusNode.unfocus();
-                                      }
-                                    });
+                                    _focusNode.unfocus();
+                                    showCustomEmojiPicker(
+                                      context: context,
+                                      controller: _controller,
+                                      emojiTextStyle: _textStyle,
+                                    );
                                   },
-                                  icon: Icon(
-                                    _emojiShowing
-                                        ? Icons.keyboard
-                                        : Icons.emoji_emotions_outlined,
+                                  icon: const Icon(
+                                    Icons.emoji_emotions_outlined,
                                     color: secondaryColor,
                                   ),
                                 ),
@@ -176,77 +167,6 @@ class WhatsAppScreenState extends State<WhatsAppScreen> {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  Offstage(
-                    offstage: !_emojiShowing,
-                    child: EmojiPicker(
-                      textEditingController: _controller,
-                      scrollController: _scrollController,
-                      config: Config(
-                        height: 256,
-                        checkPlatformCompatibility: true,
-                        viewOrderConfig: const ViewOrderConfig(
-                          top: EmojiPickerItem.searchBar,
-                          middle: EmojiPickerItem.emojiView,
-                          bottom: EmojiPickerItem.categoryBar,
-                        ),
-                        emojiTextStyle: _textStyle,
-                        emojiViewConfig: const EmojiViewConfig(
-                          backgroundColor: Colors.white,
-                        ),
-                        skinToneConfig: const SkinToneConfig(),
-                        categoryViewConfig: CategoryViewConfig(
-                          backgroundColor: Colors.white,
-                          dividerColor: Colors.white,
-                          indicatorColor: accentColor,
-                          iconColorSelected: Colors.black,
-                          iconColor: secondaryColor,
-                          customCategoryView: (
-                            config,
-                            state,
-                            tabController,
-                            pageController,
-                          ) {
-                            return WhatsAppCategoryView(
-                              config,
-                              state,
-                              tabController,
-                              pageController,
-                            );
-                          },
-                          categoryIcons: const CategoryIcons(
-                            recentIcon: Icons.access_time_outlined,
-                            smileyIcon: Icons.emoji_emotions_outlined,
-                            animalIcon: Icons.cruelty_free_outlined,
-                            foodIcon: Icons.coffee_outlined,
-                            activityIcon: Icons.sports_soccer_outlined,
-                            travelIcon: Icons.directions_car_filled_outlined,
-                            objectIcon: Icons.lightbulb_outline,
-                            symbolIcon: Icons.emoji_symbols_outlined,
-                            flagIcon: Icons.flag_outlined,
-                          ),
-                        ),
-                        bottomActionBarConfig: const BottomActionBarConfig(
-                          backgroundColor: Colors.white,
-                          buttonColor: Colors.white,
-                          buttonIconColor: secondaryColor,
-                        ),
-                        searchViewConfig: SearchViewConfig(
-                          backgroundColor: Colors.white,
-                          customSearchView: (
-                            config,
-                            state,
-                            showEmojiView,
-                          ) {
-                            return WhatsAppSearchView(
-                              config,
-                              state,
-                              showEmojiView,
-                            );
-                          },
-                        ),
-                      ),
                     ),
                   ),
                 ],
