@@ -10,9 +10,7 @@ const textPrimary = Color(0xFF313131);
 const textTertiary = Color(0xFF6F6C65);
 const brandColor = Color(0xFF445727);
 
-/// Custom emoji bottom sheet with Figma layout:
-/// Search bar -> Suggested row -> Recent row -> All categories vertically
-/// OPTIMIZED for performance with lazy loading
+/// Custom emoji bottom sheet with WhatsApp-style layout
 class CustomEmojiBottomSheet extends StatefulWidget {
   final EmojiTextEditingController controller;
   final TextStyle emojiTextStyle;
@@ -33,19 +31,17 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
   final FocusNode _searchFocusNode = FocusNode();
   final _emojiPickerUtils = EmojiPickerUtils();
 
-  // Emoji data extracted from package
   Map<Category, List<Emoji>> _categoryEmojis = {};
   List<RecentEmoji> _recentEmojis = [];
   List<Emoji> _suggestedEmojis = [];
   List<Emoji> _searchResults = [];
   bool _isSearching = false;
   bool _dataLoaded = false;
-
-  // Search debounce
   Timer? _searchDebounce;
+  bool _isScrolling = false;
+  Category _selectedCategory = Category.SMILEYS;
 
-  // Ordered categories for display
-  final List<Category> _orderedCategories = [
+  static const List<Category> _orderedCategories = [
     Category.SMILEYS,
     Category.ANIMALS,
     Category.FOODS,
@@ -56,11 +52,7 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
     Category.FLAGS,
   ];
 
-  // Flag to prevent multiple scroll animations
-  bool _isScrolling = false;
-
-  // Track selected category
-  Category _selectedCategory = Category.SMILEYS;
+  static const int _itemsPerRow = 7;
 
   @override
   void initState() {
@@ -82,22 +74,17 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
   void _onEmojiDataLoaded(EmojiViewState state) {
     if (_dataLoaded) return;
 
-    // Extract emoji data from state
     final Map<Category, List<Emoji>> categorized = {};
-
     for (var categoryEmoji in state.categoryEmoji) {
       final category = categoryEmoji.category;
       if (!categorized.containsKey(category)) {
         categorized[category] = [];
       }
-      // CategoryEmoji contains a list of Emoji objects
       categorized[category]!.addAll(categoryEmoji.emoji);
     }
 
-    // Load suggested emojis
     final suggestedEmojiStrings = ['😊', '❤️', '😂', '👍', '🔥', '🎉', '😍'];
     final List<Emoji> suggested = [];
-
     for (var emojiStr in suggestedEmojiStrings) {
       for (var categoryList in categorized.values) {
         for (var emoji in categoryList) {
@@ -129,11 +116,11 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
   }
 
   void _handleSearchChange() {
-    // Debounce search for better performance
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
-      _performSearch(_searchController.text);
-    });
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      () => _performSearch(_searchController.text),
+    );
   }
 
   void _performSearch(String query) {
@@ -147,12 +134,7 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
       return;
     }
 
-    // Search across all emojis
-    final allEmojis = <Emoji>[];
-    for (var categoryList in _categoryEmojis.values) {
-      allEmojis.addAll(categoryList);
-    }
-
+    final allEmojis = _categoryEmojis.values.expand((list) => list).toList();
     final results = allEmojis
         .where((emoji) =>
             emoji.name.toLowerCase().contains(trimmedQuery) ||
@@ -166,19 +148,15 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
   }
 
   Future<void> _onEmojiTapped(Emoji emoji) async {
-    // Insert emoji into text controller
     widget.controller.text += emoji.emoji;
 
-    // Add to recent using package API
     await _emojiPickerUtils.addEmojiToRecentlyUsed(
       key: GlobalKey<EmojiPickerState>(),
       emoji: Emoji(emoji.emoji, emoji.name),
     );
 
-    // Reload recent emojis
     await _loadRecentEmojis();
 
-    // Close sheet
     if (mounted) {
       Navigator.of(context).pop();
     }
@@ -190,7 +168,6 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
     final scrollPosition = _scrollController.offset;
     double currentPosition = 0;
 
-    // Check if at top (Recent/Suggested area)
     if (scrollPosition < 10) {
       if (_selectedCategory != Category.RECENT) {
         setState(() => _selectedCategory = Category.RECENT);
@@ -198,22 +175,14 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
       return;
     }
 
-    // Add suggested height
-    if (_suggestedEmojis.isNotEmpty) {
-      currentPosition += 79;
-    }
+    if (_suggestedEmojis.isNotEmpty) currentPosition += 79;
+    if (_recentEmojis.isNotEmpty) currentPosition += 79;
 
-    // Add recent height
-    if (_recentEmojis.isNotEmpty) {
-      currentPosition += 79;
-    }
-
-    // Find which category we're in
     for (var category in _orderedCategories) {
       final emojis = _categoryEmojis[category];
       if (emojis == null || emojis.isEmpty) continue;
 
-      final categoryHeight = 36 + ((emojis.length / 7).ceil() * 51);
+      final categoryHeight = 36 + ((emojis.length / _itemsPerRow).ceil() * 51);
 
       if (scrollPosition < currentPosition + categoryHeight) {
         if (_selectedCategory != category) {
@@ -257,25 +226,20 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
   }
 
   void _scrollToCategoryWithPreload(Category category) {
-    // Calculate rough position
     final roughPosition = _calculateCategoryPosition(category);
     final maxScroll = _scrollController.position.maxScrollExtent;
-
-    // If we're jumping far (more than viewport height), preload first
     final currentPosition = _scrollController.offset;
     final jumpDistance = (roughPosition - currentPosition).abs();
     final viewportHeight = _scrollController.position.viewportDimension;
 
     if (jumpDistance > viewportHeight * 0.8) {
-      // Big jump - scroll to approximate position first to trigger lazy loading
       _scrollController
           .animateTo(
-        roughPosition.clamp(0.0, maxScroll), // 50px before target
+        roughPosition.clamp(0.0, maxScroll),
         duration: const Duration(milliseconds: 100),
         curve: Curves.linear,
       )
           .then((_) {
-        // Wait for layout, then scroll to exact position
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted && _scrollController.hasClients) {
             _calculateAndScrollToCategory(category);
@@ -285,7 +249,6 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
         });
       });
     } else {
-      // Small jump - scroll directly
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _scrollController.hasClients) {
           _calculateAndScrollToCategory(category);
@@ -299,20 +262,16 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
   double _calculateCategoryPosition(Category category) {
     double position = 0;
 
-    if (_suggestedEmojis.isNotEmpty) {
-      position += 79;
-    }
-    if (_recentEmojis.isNotEmpty) {
-      position += 79;
-    }
+    if (_suggestedEmojis.isNotEmpty) position += 79;
+    if (_recentEmojis.isNotEmpty) position += 79;
 
     for (var cat in _orderedCategories) {
       if (cat == category) break;
 
       final emojis = _categoryEmojis[cat];
       if (emojis != null && emojis.isNotEmpty) {
-        position += 36; // Header
-        position += ((emojis.length / 7).ceil()) * 51; // Rows
+        position += 36;
+        position += ((emojis.length / _itemsPerRow).ceil()) * 51;
       }
     }
 
@@ -325,18 +284,12 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
       return;
     }
 
-    // Use the helper method to calculate position
-    final categoryHeaderPosition = _calculateCategoryPosition(category);
-
-    // The scroll position should place the category header at the top of
-    // the visible scroll area (position 0 of the scrollable viewport)
-    // So we scroll to exactly where the header starts
+    final targetPosition = _calculateCategoryPosition(category);
     final maxScroll = _scrollController.position.maxScrollExtent;
-    final targetPosition = categoryHeaderPosition.clamp(0.0, maxScroll);
 
     _scrollController
         .animateTo(
-      targetPosition,
+      targetPosition.clamp(0.0, maxScroll),
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOutCubic,
     )
@@ -386,7 +339,6 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
           ),
           child: Column(
             children: [
-              // Drag handle
               Padding(
                 padding: const EdgeInsets.only(top: 10),
                 child: Container(
@@ -399,29 +351,22 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Fixed Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _buildSearchBar(),
               ),
               const SizedBox(height: 16),
-
-              // Scrollable content - OPTIMIZED with CustomScrollView
               Expanded(
                 child: _dataLoaded
-                    ? _buildOptimizedEmojiList()
+                    ? _buildEmojiList()
                     : const Center(child: CircularProgressIndicator()),
               ),
-
-              // Category Tabs (Fixed at bottom)
               _buildCategoryTabs(),
               const SizedBox(height: 34),
             ],
           ),
         ),
 
-        // Hidden EmojiPicker to extract data
         Offstage(
           child: SizedBox(
             height: 1,
@@ -439,7 +384,6 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
                 categoryViewConfig: CategoryViewConfig(
                   customCategoryView:
                       (config, state, tabController, pageController) {
-                    // Extract emoji data from state
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       _onEmojiDataLoaded(state);
                     });
@@ -454,8 +398,7 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
     );
   }
 
-  // OPTIMIZED: Use CustomScrollView with Slivers for lazy loading
-  Widget _buildOptimizedEmojiList() {
+  Widget _buildEmojiList() {
     if (_isSearching) {
       return _buildSearchResults();
     }
@@ -465,89 +408,80 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
       child: CustomScrollView(
         controller: _scrollController,
         slivers: [
-          // Suggested emojis
           if (_suggestedEmojis.isNotEmpty) ...[
             SliverToBoxAdapter(child: _buildSuggestedRow()),
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
-
-          // Recent emojis
           if (_recentEmojis.isNotEmpty) ...[
             SliverToBoxAdapter(child: _buildRecentRow()),
             const SliverToBoxAdapter(child: SizedBox(height: 16)),
           ],
-
-          // All categories with lazy loading
           ..._orderedCategories.where((category) {
             final emojis = _categoryEmojis[category];
             return emojis != null && emojis.isNotEmpty;
-          }).map((category) {
-            return _buildCategorySliverList(category);
-          }),
+          }).map((category) => _buildCategorySliver(category)),
         ],
       ),
     );
   }
 
-  // OPTIMIZED: Build category as SliverList for lazy loading
-  Widget _buildCategorySliverList(Category category) {
+  Widget _buildCategorySliver(Category category) {
     final emojis = _categoryEmojis[category]!;
-    const itemsPerRow = 7;
-    final rowCount = (emojis.length / itemsPerRow).ceil();
+    final rowCount = (emojis.length / _itemsPerRow).ceil();
 
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
-          // First item is the header
           if (index == 0) {
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Row(
-                children: [
-                  Text(
-                    _getCategoryName(category),
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      letterSpacing: -0.26,
-                      color: textPrimary,
-                    ),
-                  ),
-                ],
+              child: Text(
+                _getCategoryName(category),
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: -0.26,
+                  color: textPrimary,
+                ),
               ),
             );
           }
 
-          // Build emoji row
           final rowIndex = index - 1;
           if (rowIndex >= rowCount) return null;
 
           return _buildEmojiRow(emojis, rowIndex);
         },
-        childCount: rowCount + 1, // +1 for header
+        childCount: rowCount + 1,
       ),
     );
   }
 
-  // OPTIMIZED: Build single row of emojis
   Widget _buildEmojiRow(List<Emoji> emojis, int rowIndex) {
-    const itemsPerRow = 7;
-    final start = rowIndex * itemsPerRow;
-    final end = (start + itemsPerRow).clamp(0, emojis.length);
+    final start = rowIndex * _itemsPerRow;
+    final end = (start + _itemsPerRow).clamp(0, emojis.length);
     final rowEmojis = emojis.sublist(start, end);
+
+    final rowWidgets = <Widget>[];
+    for (int i = 0; i < _itemsPerRow; i++) {
+      final widget = i < rowEmojis.length
+          ? _buildEmojiItem(rowEmojis[i])
+          : const SizedBox(width: 35, height: 35);
+
+      rowWidgets.add(
+        Padding(
+          padding: EdgeInsets.only(right: i < _itemsPerRow - 1 ? 16 : 0),
+          child: widget,
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: rowEmojis.asMap().entries.map((entry) {
-          return Padding(
-            padding: EdgeInsets.only(
-              right: entry.key < rowEmojis.length - 1 ? 16 : 0,
-            ),
-            child: _buildEmojiItem(entry.value),
-          );
-        }).toList(),
+        mainAxisAlignment:
+            MainAxisAlignment.spaceAround, // Changed from spaceAround
+        children: rowWidgets,
       ),
     );
   }
@@ -644,15 +578,14 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
           height: 35,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
-            itemCount: min(7, _recentEmojis.length),
-            separatorBuilder: (context, index) => const SizedBox(width: 16),
+            itemCount: min(_itemsPerRow, _recentEmojis.length),
+            separatorBuilder: (_, __) => const SizedBox(width: 16),
             itemBuilder: (context, index) {
-              final emoji = _recentEmojis[index];
-              // Find the Emoji for this recent emoji
+              final recentEmoji = _recentEmojis[index];
               Emoji? foundEmoji;
               for (var categoryList in _categoryEmojis.values) {
                 for (var e in categoryList) {
-                  if (e.emoji == emoji.emoji.emoji) {
+                  if (e.emoji == recentEmoji.emoji.emoji) {
                     foundEmoji = e;
                     break;
                   }
@@ -670,6 +603,8 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
   }
 
   Widget _buildSearchResults() {
+    final rowCount = (_searchResults.length / _itemsPerRow).ceil();
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: CustomScrollView(
@@ -690,12 +625,10 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
           SliverList(
             delegate: SliverChildBuilderDelegate(
               (context, index) {
-                const itemsPerRow = 7;
-                final rowCount = (_searchResults.length / itemsPerRow).ceil();
                 if (index >= rowCount) return null;
                 return _buildEmojiRow(_searchResults, index);
               },
-              childCount: (_searchResults.length / 7).ceil(),
+              childCount: rowCount,
             ),
           ),
         ],
@@ -703,18 +636,18 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
     );
   }
 
-  // OPTIMIZED: Add RepaintBoundary to prevent unnecessary repaints
   Widget _buildEmojiItem(Emoji emoji) {
     return RepaintBoundary(
       child: GestureDetector(
         onTap: () => _onEmojiTapped(emoji),
-        child: Container(
+        child: SizedBox(
           width: 35,
           height: 35,
-          alignment: Alignment.center,
-          child: Text(
-            emoji.emoji,
-            style: widget.emojiTextStyle.copyWith(fontSize: 28),
+          child: Center(
+            child: Text(
+              emoji.emoji,
+              style: widget.emojiTextStyle.copyWith(fontSize: 28),
+            ),
           ),
         ),
       ),
