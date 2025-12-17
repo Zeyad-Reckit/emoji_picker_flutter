@@ -1,8 +1,7 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart' as foundation;
-import '../widgets/custom_emoji_bottom_sheet.dart';
+import 'widgets/custom_emoji_bottom_sheet.dart';
 
 const accentColor = Color(0xFF4BA586);
 const accentColorDark = Color(0xFF377E6A);
@@ -19,25 +18,14 @@ class WhatsAppScreen extends StatefulWidget {
 }
 
 class WhatsAppScreenState extends State<WhatsAppScreen> {
-  final _utils = EmojiPickerUtils();
   late final EmojiTextEditingController _controller;
-  late final ScrollController _scrollController;
-  late final FocusNode _focusNode;
-  late final TextStyle _textStyle;
-  final bool isApple = [TargetPlatform.iOS, TargetPlatform.macOS]
-      .contains(foundation.defaultTargetPlatform);
 
   @override
   void initState() {
-    final fontSize = 24 * (isApple ? 1.2 : 1.0);
-    // Define Custom Emoji Font & Text Style
-    _textStyle = TextStyle(
-      fontSize: fontSize,
-    );
-
-    _controller = EmojiTextEditingController(emojiTextStyle: _textStyle);
-    _scrollController = ScrollController();
-    _focusNode = FocusNode();
+    _controller = EmojiTextEditingController(
+        emojiTextStyle: const TextStyle(
+      fontSize: 24,
+    ));
 
     super.initState();
   }
@@ -59,117 +47,42 @@ class WhatsAppScreenState extends State<WhatsAppScreen> {
           ),
         ),
         body: SafeArea(
-          child: Stack(
+          child: Column(
             children: [
-              Image.asset(
-                'assets/whatsapp_bg.png',
-                width: MediaQuery.of(context).size.width,
-                height: MediaQuery.of(context).size.height,
-                opacity: const AlwaysStoppedAnimation(0.7),
-                fit: BoxFit.fill,
-              ),
-              Column(
-                children: [
-                  Expanded(
-                    child: Center(
-                      child: ValueListenableBuilder(
-                        valueListenable: _controller,
-                        builder: (context, text, child) {
-                          return RichText(
-                            textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 18.0,
-                              ),
-                              children: _utils.setEmojiTextStyle(
-                                _controller.text,
-                                emojiStyle: _textStyle,
-                              ),
-                            ),
-                          );
-                        },
+              const SizedBox(height: 20),
+              Center(
+                child: ValueListenableBuilder(
+                  valueListenable: _controller,
+                  builder: (context, text, child) {
+                    return RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        style: const TextStyle(
+                          fontSize: 24,
+                        ),
+                        children: [
+                          TextSpan(text: _controller.text),
+                        ],
                       ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                child: const Text(
+                  'Open Emoji Picker',
+                  style: TextStyle(color: secondaryColor),
+                ),
+                onPressed: () {
+                  showCustomEmojiPicker(
+                    context: context,
+                    controller: _controller,
+                    emojiTextStyle: const TextStyle(
+                      fontSize: 24,
                     ),
-                  ),
-                  Container(
-                    height: 48.0,
-                    margin: const EdgeInsets.symmetric(
-                      vertical: 4.0,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            margin: const EdgeInsets.symmetric(
-                              horizontal: 4.0,
-                            ),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.all(
-                                Radius.circular(20),
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                IconButton(
-                                  onPressed: () {
-                                    _focusNode.unfocus();
-                                    showCustomEmojiPicker(
-                                      context: context,
-                                      controller: _controller,
-                                      emojiTextStyle: _textStyle,
-                                    );
-                                  },
-                                  icon: const Icon(
-                                    Icons.emoji_emotions_outlined,
-                                    color: secondaryColor,
-                                  ),
-                                ),
-                                Expanded(
-                                  child: TextField(
-                                    controller: _controller,
-                                    scrollController: _scrollController,
-                                    focusNode: _focusNode,
-                                    style: const TextStyle(
-                                      fontSize: 20.0,
-                                      color: Colors.black87,
-                                    ),
-                                    maxLines: 1,
-                                    decoration: const InputDecoration(
-                                      hintText: 'Type a message',
-                                      hintStyle: TextStyle(
-                                          color: secondaryColor,
-                                          fontWeight: FontWeight.normal),
-                                      border: InputBorder.none,
-                                      contentPadding: EdgeInsets.zero,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Container(
-                          margin: const EdgeInsets.only(right: 4.0),
-                          child: CircleAvatar(
-                            backgroundColor: accentColor,
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.send,
-                                size: 20.0,
-                                color: Colors.white,
-                              ),
-                              onPressed: () {
-                                // send message
-                              },
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
             ],
           ),

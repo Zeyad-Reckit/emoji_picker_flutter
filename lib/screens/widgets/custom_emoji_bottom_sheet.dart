@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 
@@ -83,17 +82,28 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
       categorized[category]!.addAll(categoryEmoji.emoji);
     }
 
-    final suggestedEmojiStrings = ['😊', '❤️', '😂', '👍', '🔥', '🎉', '😍'];
+    final suggestedEmojiStrings = [
+      '❤️',
+      '👍',
+      '🔥',
+      '👀',
+      '😂',
+      '🙌',
+      '😍',
+      '🎉',
+    ];
     final List<Emoji> suggested = [];
     for (var emojiStr in suggestedEmojiStrings) {
+      bool found = false;
       for (var categoryList in categorized.values) {
+        if (found) break;
         for (var emoji in categoryList) {
           if (emoji.emoji == emojiStr) {
             suggested.add(emoji);
+            found = true;
             break;
           }
         }
-        if (suggested.length == suggestedEmojiStrings.length) break;
       }
     }
 
@@ -362,6 +372,17 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
                     : const Center(child: CircularProgressIndicator()),
               ),
               _buildCategoryTabs(),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: () => Navigator.of(context).pop(),
+                child: const Text(
+                  'Dismiss',
+                  style: TextStyle(
+                      color: brandColor,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
               const SizedBox(height: 34),
             ],
           ),
@@ -408,14 +429,10 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
       child: CustomScrollView(
         controller: _scrollController,
         slivers: [
-          if (_suggestedEmojis.isNotEmpty) ...[
+          if (_suggestedEmojis.isNotEmpty)
             SliverToBoxAdapter(child: _buildSuggestedRow()),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          ],
-          if (_recentEmojis.isNotEmpty) ...[
+          if (_recentEmojis.isNotEmpty)
             SliverToBoxAdapter(child: _buildRecentRow()),
-            const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          ],
           ..._orderedCategories.where((category) {
             final emojis = _categoryEmojis[category];
             return emojis != null && emojis.isNotEmpty;
@@ -491,7 +508,6 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
       height: 48,
       decoration: BoxDecoration(
         border: Border.all(color: linesDivider, width: 1),
-        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
@@ -545,17 +561,7 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 35,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: _suggestedEmojis.length,
-            separatorBuilder: (context, index) => const SizedBox(width: 16),
-            itemBuilder: (context, index) {
-              return _buildEmojiItem(_suggestedEmojis[index]);
-            },
-          ),
-        ),
+        _buildEmojiRow(_suggestedEmojis, 0),
       ],
     );
   }
@@ -574,30 +580,7 @@ class _CustomEmojiBottomSheetState extends State<CustomEmojiBottomSheet> {
           ),
         ),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 35,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: min(_itemsPerRow, _recentEmojis.length),
-            separatorBuilder: (_, __) => const SizedBox(width: 16),
-            itemBuilder: (context, index) {
-              final recentEmoji = _recentEmojis[index];
-              Emoji? foundEmoji;
-              for (var categoryList in _categoryEmojis.values) {
-                for (var e in categoryList) {
-                  if (e.emoji == recentEmoji.emoji.emoji) {
-                    foundEmoji = e;
-                    break;
-                  }
-                }
-                if (foundEmoji != null) break;
-              }
-              return foundEmoji != null
-                  ? _buildEmojiItem(foundEmoji)
-                  : const SizedBox.shrink();
-            },
-          ),
-        ),
+        _buildEmojiRow(_recentEmojis.map((e) => e.emoji).toList(), 0),
       ],
     );
   }
